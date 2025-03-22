@@ -65,6 +65,9 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _showDrawingCanvas = false;
   final FocusNode _searchFocusNode = FocusNode();
   
+  // Add this to track the current tab index
+  int _currentIndex = 0;
+  
   @override
   void dispose() {
     _searchController.dispose();
@@ -80,69 +83,34 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text('Japanese Dictionary App'),
       ),
-      body: Column(
-        children: [
-          // Search box
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              decoration: InputDecoration(
-                hintText: 'Search Japanese words',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
+      body: _currentIndex == 0 
+          ? _buildDictionaryPage(appState)
+          : _buildFlashcardsPage(),
+      
+      // Add this Bottom Navigation Bar
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+            // Hide drawing canvas when switching tabs
+            _showDrawingCanvas = false;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.book),
+            label: 'Dictionary',
           ),
-          
-          // Main content
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('A lovely idea:'),
-                  Text(appState.current.asLowerCase),
-                  ElevatedButton(
-                    onPressed: () {
-                      appState.getNext();
-                    },
-                    child: Text('Next'),
-                  ),
-                ],
-              ),
-            ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.flash_on),
+            label: 'Flashcards',
           ),
-          
-          // Drawing canvas (conditionally shown)
-          if (_showDrawingCanvas)
-            Container(
-              height: 350, // Increased height for more drawing room
-              padding: EdgeInsets.all(8),
-              child: JapaneseDrawingCanvas(
-                onTextRecognized: (text, isNewCharacter) {
-                  if (text.isNotEmpty) {
-                    setState(() {
-                      // Always append the character to existing text
-                      // Since we only call this when a character button is pressed
-                      _searchController.text += text.first;
-                      
-                      // Place cursor at the end
-                      _searchController.selection = TextSelection.fromPosition(
-                        TextPosition(offset: _searchController.text.length),
-                      );
-                    });
-                  }
-                },
-              ),
-            ),
         ],
       ),
-      // Floating action button for toggling canvas
-      floatingActionButton: FloatingActionButton(
+      
+      // Show FAB only on dictionary page
+      floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
         onPressed: () {
           setState(() {
             _showDrawingCanvas = !_showDrawingCanvas;
@@ -157,6 +125,97 @@ class _MyHomePageState extends State<MyHomePage> {
         },
         child: Icon(_showDrawingCanvas ? Icons.keyboard : Icons.draw),
         tooltip: _showDrawingCanvas ? 'Show keyboard' : 'Show canvas',
+      ) : null,
+    );
+  }
+  
+  // Extract the dictionary page to a separate method
+  Widget _buildDictionaryPage(MyAppState appState) {
+    return Column(
+      children: [
+        // Search box
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            decoration: InputDecoration(
+              hintText: 'Search Japanese words',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+        
+        // Main content
+        Expanded(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('A lovely idea:'),
+                Text(appState.current.asLowerCase),
+                ElevatedButton(
+                  onPressed: () {
+                    appState.getNext();
+                  },
+                  child: Text('Next'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        // Drawing canvas (conditionally shown)
+        if (_showDrawingCanvas)
+          Container(
+            height: 350, // Increased height for more drawing room
+            padding: EdgeInsets.all(8),
+            child: JapaneseDrawingCanvas(
+              onTextRecognized: (text, isNewCharacter) {
+                if (text.isNotEmpty) {
+                  setState(() {
+                    // Always append the character to existing text
+                    _searchController.text += text.first;
+                    
+                    // Place cursor at the end
+                    _searchController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: _searchController.text.length),
+                    );
+                  });
+                }
+              },
+            ),
+          ),
+      ],
+    );
+  }
+  
+  // Create a new method for the flashcards page
+  Widget _buildFlashcardsPage() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'Flashcards',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          SizedBox(height: 20),
+          Text(
+            'Your flashcards will appear here',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          SizedBox(height: 30),
+          ElevatedButton(
+            onPressed: () {
+              // Add flashcard functionality here
+            },
+            child: Text('Create Flashcard'),
+          ),
+        ],
       ),
     );
   }

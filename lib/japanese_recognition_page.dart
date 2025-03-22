@@ -6,7 +6,7 @@ import 'dart:developer' as developer;
 class JapaneseDrawingCanvas extends StatefulWidget {
   final Function(List<String>, bool) onTextRecognized;
   
-  const JapaneseDrawingCanvas({Key? key, required this.onTextRecognized}) : super(key: key);
+  const JapaneseDrawingCanvas({super.key, required this.onTextRecognized});
   
   @override
   State<JapaneseDrawingCanvas> createState() => _JapaneseDrawingCanvasState();
@@ -14,7 +14,6 @@ class JapaneseDrawingCanvas extends StatefulWidget {
 
 class _JapaneseDrawingCanvasState extends State<JapaneseDrawingCanvas> {
   var _digitalInkRecognizer = DigitalInkRecognizer(languageCode: 'ja');
-  final DigitalInkRecognizerModelManager _modelManager = DigitalInkRecognizerModelManager();
   final Ink _ink = Ink();
   List<StrokePoint> _points = [];
   
@@ -162,7 +161,7 @@ class _JapaneseDrawingCanvasState extends State<JapaneseDrawingCanvas> {
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
                   border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: GestureDetector(
                   onPanStart: (DragStartDetails details) {
