@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_mlkit_digital_ink_recognition/google_mlkit_digital_ink_recognition.dart';
 import 'japanese_recognition_page.dart';
+import 'learn_page.dart'; // Updated import
 import 'dart:developer' as developer;
 
 void main() async {
@@ -85,9 +86,8 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: _currentIndex == 0 
           ? _buildDictionaryPage(appState)
-          : _buildFlashcardsPage(),
+          : LearnPage(), // Updated widget name
       
-      // Add this Bottom Navigation Bar
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
@@ -103,29 +103,12 @@ class _MyHomePageState extends State<MyHomePage> {
             label: 'Dictionary',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.flash_on),
-            label: 'Flashcards',
+            icon: Icon(Icons.school), // Updated icon to match "Learn" theme
+            label: 'Learn', // Updated label
           ),
         ],
       ),
-      
-      // Show FAB only on dictionary page
-      floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
-        onPressed: () {
-          setState(() {
-            _showDrawingCanvas = !_showDrawingCanvas;
-            if (!_showDrawingCanvas) {
-              // If hiding the canvas, show keyboard
-              _searchFocusNode.requestFocus();
-            } else {
-              // If showing the canvas, hide keyboard
-              FocusManager.instance.primaryFocus?.unfocus();
-            }
-          });
-        },
-        child: Icon(_showDrawingCanvas ? Icons.keyboard : Icons.draw),
-        tooltip: _showDrawingCanvas ? 'Show keyboard' : 'Show canvas',
-      ) : null,
+      // Removed FloatingActionButton as it's now in the TextField
     );
   }
   
@@ -133,7 +116,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget _buildDictionaryPage(MyAppState appState) {
     return Column(
       children: [
-        // Search box
+        // Search box with integrated toggle button
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: TextField(
@@ -144,6 +127,23 @@ class _MyHomePageState extends State<MyHomePage> {
               prefixIcon: Icon(Icons.search),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
+              ),
+              // Added toggle button as suffix icon
+              suffixIcon: IconButton(
+                icon: Icon(_showDrawingCanvas ? Icons.keyboard : Icons.draw),
+                onPressed: () {
+                  setState(() {
+                    _showDrawingCanvas = !_showDrawingCanvas;
+                    if (!_showDrawingCanvas) {
+                      // If hiding the canvas, show keyboard
+                      _searchFocusNode.requestFocus();
+                    } else {
+                      // If showing the canvas, hide keyboard
+                      FocusManager.instance.primaryFocus?.unfocus();
+                    }
+                  });
+                },
+                tooltip: _showDrawingCanvas ? 'Show keyboard' : 'Show canvas',
               ),
             ),
           ),
@@ -190,33 +190,6 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
       ],
-    );
-  }
-  
-  // Create a new method for the flashcards page
-  Widget _buildFlashcardsPage() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'Flashcards',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          SizedBox(height: 20),
-          Text(
-            'Your flashcards will appear here',
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-          SizedBox(height: 30),
-          ElevatedButton(
-            onPressed: () {
-              // Add flashcard functionality here
-            },
-            child: Text('Create Flashcard'),
-          ),
-        ],
-      ),
     );
   }
 }
