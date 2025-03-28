@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_mlkit_digital_ink_recognition/google_mlkit_digital_ink_recognition.dart';
 import 'japanese_recognition_page.dart';
-import 'learn_page.dart'; // Updated import
+import 'learn_page.dart';
 import 'dart:developer' as developer;
+import 'database_helper.dart';
+import 'japanese_word.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +25,23 @@ void main() async {
     }
   } catch (e) {
     developer.log('Error checking/downloading model: $e', error: e);
+  }
+  
+  // Initialize database from assets
+  await DatabaseHelper.instance.ensureInitialized();
+  
+  // Log database info for debugging
+  try {
+    final tableNames = await DatabaseHelper.instance.getTableNames();
+    developer.log('Tables in database: $tableNames');
+    
+    // Print schema of first table
+    if (tableNames.isNotEmpty) {
+      final columns = await DatabaseHelper.instance.getTableColumns(tableNames.first);
+      developer.log('Columns in ${tableNames.first}: $columns');
+    }
+  } catch (e) {
+    developer.log('Error inspecting database schema: $e', error: e);
   }
   
   runApp(MyApp());
@@ -65,12 +84,90 @@ class _MyHomePageState extends State<MyHomePage> {
   final TextEditingController _searchController = TextEditingController();
   bool _showDrawingCanvas = false;
   final FocusNode _searchFocusNode = FocusNode();
-  
-  // Add this to track the current tab index
   int _currentIndex = 0;
+  
+  // Add these for database search functionality
+  List<JapaneseWord> _searchResults = [];
+  bool _isSearching = false;
+  String _lastSearchQuery = '';
+  
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with all words
+    _loadAllWords();
+    
+    // Add listener to search controller
+    _searchController.addListener(_onSearchChanged);
+  }
+  
+  Future<void> _loadAllWords() async {
+    setState(() {
+      _isSearching = true;
+    });
+    
+    try {
+      final wordMaps = await DatabaseHelper.instance.getAllWords();
+      setState(() {
+        _searchResults = wordMaps.map((wordMap) => JapaneseWord.fromMap(wordMap)).toList();
+        _isSearching = false;
+      });
+    } catch (e) {
+      developer.log('Error loading all words: $e', error: e);
+      setState(() {
+        _isSearching = false;
+      });
+    }
+  }
+  
+  void _onSearchChanged() {
+    final searchText = _searchController.text.trim();
+    
+    // Skip if the search text hasn't changed
+    if (searchText == _lastSearchQuery) {
+      return;
+    }
+    
+    _lastSearchQuery = searchText;
+    
+    if (searchText.isEmpty) {
+      _loadAllWords();
+    } else {
+      // Add a small delay to avoid performing searches on every keystroke
+      Future.delayed(Duration(milliseconds: 300), () {
+        // Verify the search text hasn't changed during the delay
+        if (_searchController.text.trim() == searchText) {
+          _performSearch(searchText);
+        }
+      });
+    }
+  }
+  
+  Future<void> _performSearch(String query) async {
+    setState(() {
+      _isSearching = true;
+    });
+    
+    try {
+      final wordMaps = await DatabaseHelper.instance.searchWords(query);
+      
+      setState(() {
+        _searchResults = wordMaps.map((wordMap) => JapaneseWord.fromMap(wordMap)).toList();
+        _isSearching = false;
+      });
+      
+      developer.log('Found ${_searchResults.length} results for "$query"');
+    } catch (e) {
+      developer.log('Error searching words: $e', error: e);
+      setState(() {
+        _isSearching = false;
+      });
+    }
+  }
   
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -86,7 +183,7 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: _currentIndex == 0 
           ? _buildDictionaryPage(appState)
-          : LearnPage(), // Updated widget name
+          : LearnPage(),
       
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -103,12 +200,11 @@ class _MyHomePageState extends State<MyHomePage> {
             label: 'Dictionary',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.school), // Updated icon to match "Learn" theme
-            label: 'Learn', // Updated label
+            icon: Icon(Icons.school),
+            label: 'Learn',
           ),
         ],
       ),
-      // Removed FloatingActionButton as it's now in the TextField
     );
   }
   
@@ -129,44 +225,139 @@ class _MyHomePageState extends State<MyHomePage> {
                 borderRadius: BorderRadius.circular(12),
               ),
               // Added toggle button as suffix icon
-              suffixIcon: IconButton(
-                icon: Icon(_showDrawingCanvas ? Icons.keyboard : Icons.draw),
-                onPressed: () {
-                  setState(() {
-                    _showDrawingCanvas = !_showDrawingCanvas;
-                    if (!_showDrawingCanvas) {
-                      // If hiding the canvas, show keyboard
-                      _searchFocusNode.requestFocus();
-                    } else {
-                      // If showing the canvas, hide keyboard
-                      FocusManager.instance.primaryFocus?.unfocus();
-                    }
-                  });
-                },
-                tooltip: _showDrawingCanvas ? 'Show keyboard' : 'Show canvas',
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Clear button
+                  if (_searchController.text.isNotEmpty)
+                    IconButton(
+                      icon: Icon(Icons.clear),
+                      onPressed: () {
+                        setState(() {
+                          _searchController.clear();
+                        });
+                      },
+                      tooltip: 'Clear search',
+                    ),
+                  // Draw toggle button
+                  IconButton(
+                    icon: Icon(_showDrawingCanvas ? Icons.keyboard : Icons.draw),
+                    onPressed: () {
+                      setState(() {
+                        _showDrawingCanvas = !_showDrawingCanvas;
+                        if (!_showDrawingCanvas) {
+                          // If hiding the canvas, show keyboard
+                          _searchFocusNode.requestFocus();
+                        } else {
+                          // If showing the canvas, hide keyboard
+                          FocusManager.instance.primaryFocus?.unfocus();
+                        }
+                      });
+                    },
+                    tooltip: _showDrawingCanvas ? 'Show keyboard' : 'Show canvas',
+                  ),
+                ],
               ),
             ),
           ),
         ),
         
-        // Main content
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('A lovely idea:'),
-                Text(appState.current.asLowerCase),
-                ElevatedButton(
-                  onPressed: () {
-                    appState.getNext();
-                  },
-                  child: Text('Next'),
-                ),
-              ],
-            ),
+        // Show loading indicator when searching
+        if (_isSearching)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Center(child: CircularProgressIndicator()),
           ),
-        ),
+        
+        // Main content - search results
+        if (!_isSearching)
+          Expanded(
+            child: _searchResults.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.search_off, size: 48, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text(
+                          'No results found',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Try a different search term',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _searchResults.length,
+                    itemBuilder: (context, index) {
+                      final word = _searchResults[index];
+                      return Card(
+                        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: ExpansionTile(
+                          title: Text(
+                            word.japanese,
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (word.hiragana != null && word.hiragana!.isNotEmpty)
+                                Text(
+                                  word.hiragana!,
+                                  style: TextStyle(fontSize: 16),
+                                ),
+                              if (word.furigana != null && word.furigana!.isNotEmpty)
+                                Text(
+                                  "Furigana: ${word.furigana!}",
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                              Text(
+                                word.english,
+                                style: TextStyle(fontSize: 14),
+                              ),
+                            ],
+                          ),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Display raw data
+                                  Text(
+                                    'Raw Data:',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                  SizedBox(height: 8),
+                                  
+                                  // Loop through all fields in the data map
+                                  ...word.data.entries.map((entry) {
+                                    // Skip empty values
+                                    if (entry.value == null || entry.value.toString().isEmpty) {
+                                      return SizedBox.shrink();
+                                    }
+                                    
+                                    String fieldName = entry.key;
+                                    String fieldValue = entry.value.toString();
+                                    
+                                    return _buildDetailRow(fieldName, fieldValue);
+                                  }).toList(),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
         
         // Drawing canvas (conditionally shown)
         if (_showDrawingCanvas)
@@ -190,6 +381,40 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
       ],
+    );
+  }
+  
+  Widget _buildDetailRow(String label, String value) {
+    // Highlight priority-related fields with a different color
+    final bool isPriorityField = label == 'pri_point' || 
+                                label == 'adjusted_pri_point';
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120, // Increased width for longer field names
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isPriorityField ? Colors.deepOrange : Colors.grey[700],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: isPriorityField ? Colors.deepOrange : Colors.black,
+                fontWeight: isPriorityField ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
