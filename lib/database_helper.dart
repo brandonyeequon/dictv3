@@ -140,15 +140,15 @@ class DatabaseHelper {
             di.pri_point
             + CASE
                 WHEN substr(di.meaning, 1, CASE WHEN instr(di.meaning, ';') > 0 THEN instr(di.meaning, ';') - 1 ELSE length(di.meaning) END) = ?
-                THEN 5000
+                THEN 120000
                 ELSE 0
               END
             + CASE
-                WHEN di.tags LIKE '%N5%' THEN 4000
-                WHEN di.tags LIKE '%N4%' THEN 3000
-                WHEN di.tags LIKE '%N3%' THEN 2000
-                WHEN di.tags LIKE '%N2%' THEN 1000
-                WHEN di.tags LIKE '%N1%' THEN 500
+                WHEN di.tags LIKE '%N5%' THEN 130000
+                WHEN di.tags LIKE '%N4%' THEN 120000
+                WHEN di.tags LIKE '%N3%' THEN 110000
+                WHEN di.tags LIKE '%N2%' THEN 100000
+                WHEN di.tags LIKE '%N1%' THEN 90000
                 ELSE 0
               END
           ) AS adjusted_pri_point,
