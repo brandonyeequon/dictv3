@@ -10,6 +10,8 @@ class JapaneseWord {
   // Convenience getters for common fields
   int? get id => data['id'] as int?;
   int? get source => data['source'] as int?;
+  /// The internal SQLite rowid for this entry (when available).
+  int? get rowId => data['rowid'] as int?;
   String get japanese => data['kanji'] as String? ?? '';
   String? get hiragana => data['reading'] as String?;
   String? get furigana => data['furigana'] as String?;

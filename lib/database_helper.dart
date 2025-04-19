@@ -31,6 +31,24 @@ class DatabaseHelper {
     await database;
   }
 
+  /// Fetch a single word entry by its SQLite rowid from dict_index.
+  Future<Map<String, dynamic>?> getWordByRowId(int rowId) async {
+    final db = await database;
+    try {
+      final ResultSet result = db.select('''
+        SELECT rowid, *
+        FROM dict_index
+        WHERE rowid = ?
+        LIMIT 1
+      ''', [rowId]);
+      final List<Map<String, dynamic>> list = _resultSetToList(result);
+      return list.isNotEmpty ? list.first : null;
+    } catch (e) {
+      developer.log('Error fetching word by rowid $rowId: $e', error: e);
+      return null;
+    }
+  }
+
   Future<Database> get database async {
     if (_database != null) return _database!;
     
@@ -106,42 +124,39 @@ class DatabaseHelper {
     try {
       // Format the query for FTS5
       final formattedQuery = query.split(' ').map((term) => '$term*').join(' ');
-      
-      // Log first few results' meaning field for debugging format
-      try {
-        final debugResult = db.select('''
-          SELECT meaning FROM dict_fts WHERE dict_fts MATCH ? LIMIT 5
-        ''', [formattedQuery]);
-        
-        for (final row in debugResult) {
-          final meaning = row[0] as String;
-          developer.log('DEBUG meaning format: "$meaning"');
-        }
-      } catch (e) {
-        developer.log('Error during meaning format debug: $e', error: e);
-      }
+    
       
       // Execute the FTS query with the correct table names
       // We'll do a simple exact match against the first definition (everything before first semicolon)
       final ResultSet result = db.select('''
-        SELECT 
-            rowid,
-            kanji,
-            reading,
-            meaning,
-            romaji,
-            pri_point,
-            (
-                pri_point + 
-                CASE 
-                    WHEN substr(meaning, 1, CASE WHEN instr(meaning, ';') > 0 THEN instr(meaning, ';') - 1 ELSE length(meaning) END) = ?
-                    THEN 5000  -- Bonus points for exact first definition match
-                    ELSE 0     -- No bonus for other matches
-                END
-            ) AS adjusted_pri_point,
-            substr(meaning, 1, CASE WHEN instr(meaning, ';') > 0 THEN instr(meaning, ';') - 1 ELSE length(meaning) END) AS first_def
+        SELECT
+          di.rowid,
+          di.kanji,
+          di.reading,
+          di.meaning,
+          di.romaji,
+          di.pri_point,
+          (
+            di.pri_point
+            + CASE
+                WHEN substr(di.meaning, 1, CASE WHEN instr(di.meaning, ';') > 0 THEN instr(di.meaning, ';') - 1 ELSE length(di.meaning) END) = ?
+                THEN 5000
+                ELSE 0
+              END
+            + CASE
+                WHEN di.tags LIKE '%N5%' THEN 4000
+                WHEN di.tags LIKE '%N4%' THEN 3000
+                WHEN di.tags LIKE '%N3%' THEN 2000
+                WHEN di.tags LIKE '%N2%' THEN 1000
+                WHEN di.tags LIKE '%N1%' THEN 500
+                ELSE 0
+              END
+          ) AS adjusted_pri_point,
+          substr(di.meaning, 1, CASE WHEN instr(di.meaning, ';') > 0 THEN instr(di.meaning, ';') - 1 ELSE length(di.meaning) END) AS first_def
         FROM dict_fts
+        JOIN dict_index di ON dict_fts.rowid = di.rowid
         WHERE dict_fts MATCH ?
+        GROUP BY di.rowid
         ORDER BY adjusted_pri_point DESC
         LIMIT 50
       ''', [query, formattedQuery]);
@@ -160,10 +175,9 @@ class DatabaseHelper {
     
     try {
       final ResultSet result = db.select('''
-        SELECT 
-          *,
-          pri_point AS adjusted_pri_point
-        FROM dict_index 
+        SELECT rowid, *,
+               pri_point AS adjusted_pri_point
+        FROM dict_index
         LIMIT 100
       ''');
       return _resultSetToList(result);

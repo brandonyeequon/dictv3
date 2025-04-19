@@ -7,6 +7,7 @@ import 'learn_page.dart';
 import 'dart:developer' as developer;
 import 'database_helper.dart';
 import 'japanese_word.dart';
+import 'word_detail_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -349,6 +350,23 @@ class _MyHomePageState extends State<MyHomePage> {
                                     
                                     return _buildDetailRow(fieldName, fieldValue);
                                   }).toList(),
+                                  SizedBox(height: 16),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => WordDetailPage(
+                                              rowId: word.rowId!,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: Text('View Full Details'),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
